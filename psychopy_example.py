@@ -1,6 +1,8 @@
 #!/usr/bin/python
 """example psychopy script, based on my spatial_frequency_preferences experiment
 
+Run from the command line. Type `python -h psychopy_example.py` to see the help string.
+
 You must first create your stimuli (as 2d arrays) and save them as a 3d numpy array (e.g.,
 stimuli.npy). We also assume you've created and saved separate numpy arrays that give the indices
 into your stimulus array, specifying the order you want to present them in.
