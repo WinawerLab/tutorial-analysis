@@ -81,7 +81,7 @@ def _set_params(stim_path, idx_path, on_msec_length=300, off_msec_length=200,
     expt_params['init_nblanks'] = init_nblanks
 
     # we show a digit with every other stimuli.
-    digit_num = stimuli.shape[0] / 2
+    digit_num = int(stimuli.shape[0] / 2)
     probs = np.ones(10)/9
     digits = [int(np.random.uniform(0, 10)), ""]
     for i in range(digit_num-1):
@@ -152,9 +152,9 @@ def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blan
     # linear gamma ramp
     win.gammaRamp = np.tile(np.linspace(0, 1, 256), (3, 1))
 
-    fixation = visual.TextStim(win, expt_params['fixation_text'].next(), height=fix_pix_size,
+    fixation = visual.TextStim(win, next(expt_params['fixation_text']), height=fix_pix_size,
                                color=None)
-    fixation.color = expt_params['fixation_color'].next()
+    fixation.color = next(expt_params['fixation_color'])
     # first one is special: we preload it, but we still want to include it in the iterator so the
     # numbers all match up (we don't draw or wait during the on part of the first iteration)
     img = visual.ImageStim(win, image=imagetools.array2image(stimuli[0]),
@@ -183,9 +183,9 @@ def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blan
             # we don't wait the first time, and all these have been preloaded while we were waiting
             # for the scan trigger
             if "fixation_text" in expt_params:
-                fixation.text = expt_params['fixation_text'].next()
+                fixation.text = next(expt_params['fixation_text'])
             img.image = imagetools.array2image(stim)
-            fixation.color = expt_params['fixation_color'].next()
+            fixation.color = next(expt_params['fixation_color'])
             img.draw()
             fixation.draw()
             next_stim_time = (i*on_msec_length + i*off_msec_length - 2)/1000.
@@ -207,8 +207,26 @@ def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blan
     return keys_pressed, fixation_info, timings, expt_params, idx
 
 
-def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="../data/raw_behavioral",
-         input_dir="../data/stimuli", **kwargs):
+def _convert_str(list_of_strs):
+    """convert strs to hdf5-savable format
+
+    python 3 strings are more complicated than python 2, see
+    http://docs.h5py.org/en/latest/strings.html and https://github.com/h5py/h5py/issues/892
+    """
+    list_of_strs = np.array(list_of_strs)
+    saveable_list = []
+    for x in list_of_strs:
+        try:
+            x = x.encode()
+        except AttributeError:
+            # then this is not a string but another list of strings
+            x = [i.encode() for i in x]
+        saveable_list.append(x)
+    return saveable_list
+
+
+def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/raw_behavioral",
+         input_dir="data/stimuli", **kwargs):
     """run a full experiment
 
     this just loops through the specified stims_path, passing each one to the run function in
@@ -219,7 +237,7 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="../data
         output_dir += '/'
     if input_dir[-1] != '/':
         input_dir += '/'
-    file_path = "%s%s_%s_sess{sess}.hdf5" % (output_dir, datetime.datetime.now().strftime("%Y-%b-%d"), subj_name)
+    file_path = "%s%s_%s_sess{sess:02d}.hdf5" % (output_dir, datetime.datetime.now().strftime("%Y-%b-%d"), subj_name)
     sess_num = 0
     while glob.glob(file_path.format(sess=sess_num)):
         sess_num += 1
@@ -234,18 +252,18 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="../data
     for i, path in enumerate(idx_paths):
         keys, fixation, timings, expt_params, idx = run(stimuli_path, path, **kwargs)
         with h5py.File(file_path.format(sess=sess_num), 'a') as f:
-            f.create_dataset("run_%02d_button_presses" % i, data=np.array(keys))
-            f.create_dataset("run_%02d_fixation_data" % i, data=np.array(fixation).astype(str))
-            f.create_dataset("run_%02d_timing_data" % i, data=np.array(timings))
-            f.create_dataset("run_%02d_stim_path" % i, data=stimuli_path)
-            f.create_dataset("run_%02d_idx_path" % i, data=path)
+            f.create_dataset("run_%02d_button_presses" % i, data=_convert_str(keys))
+            f.create_dataset("run_%02d_fixation_data" % i, data=_convert_str(fixation))
+            f.create_dataset("run_%02d_timing_data" % i, data=_convert_str(timings))
+            f.create_dataset("run_%02d_stim_path" % i, data=stimuli_path.encode())
+            f.create_dataset("run_%02d_idx_path" % i, data=path.encode())
             f.create_dataset("run_%02d_shuffled_indices" % i, data=idx)
-            for k, v in expt_params.iteritems():
+            for k, v in expt_params.items():
                 if k in ['fixation_color', 'fixation_text']:
                     continue
                 f.create_dataset("run_%02d_%s" % (i, k), data=v)
             # also note differences from default options
-            for k, v in kwargs.iteritems():
+            for k, v in kwargs.items():
                 if v is None:
                     f.create_dataset("run_%02d_%s" % (i, k), data=str(v))
                 else:
@@ -255,18 +273,24 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="../data
 
 
 if __name__ == '__main__':
+    class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
+        pass
     parser = argparse.ArgumentParser(
         description=("Run an experiment! This takes in the path to your unshuffled stimuli, the "
-                     "name of your subject, and the number of runs, and passes that to expt. This "
-                     "will then assume that your run indices (which shuffle the stimuli) are saved"
-                     "in the INPUT_DIR at SUBJ_NAME_runNUM_idx.npy, where NUM runs from FIRST_RUN "
-                     "to FIRST_RUN+NUMBER_OF_RUNS-1 (because this is python, 0-based indexing), "
-                     "with all single-digit numbers represented as 0#."),
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("stimuli_path",
-                        help="path to your unshuffled stimuli.")
-    parser.add_argument("number_of_runs", help="number of runs you want to run", type=int)
-    parser.add_argument("subj_name", help="name of the subject")
+                     "name\n of your subject, and the number of runs, and passes that to expt. This "
+                     "will then\nassume that your run indices (which shuffle the stimuli) are saved"
+                     "in the INPUT_DIR\nat SUBJ_NAME_runNUM_idx.npy, where NUM runs from FIRST_RUN "
+                     "to\nFIRST_RUN+NUMBER_OF_RUNS-1 (because this is python, 0-based indexing), "
+                     "with all\n single-digit numbers represented as 0#.\n\nYou can run this without"
+                     " setting any of the arguments, letting the defaults take\ncare of everything"
+                     ". This will successfully run the tutorial expeirment."),
+        formatter_class=CustomFormatter)
+    parser.add_argument("--stimuli_path", "-p",
+                        help="path to your unshuffled stimuli.",
+                        default="data/stimuli/unshuffled.npy")
+    parser.add_argument("--number_of_runs", "-n", help="number of runs you want to run", type=int,
+                        default=2)
+    parser.add_argument("--subj_name", "-s", help="name of the subject", default="sub-tutorial")
     parser.add_argument("--input_dir", '-i', help=("path to directory that contains your shuffled"
                                                    " run indices"),
                         default="data/stimuli")
