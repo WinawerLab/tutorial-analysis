@@ -27,3 +27,13 @@ defaults. This will do two runs, waiting for the scanner trigger (the
 the timing information, behavioral results, etc.) as hdf5 files in the
 `data/raw_behavioral` directory, which you should not commit to this
 repository.
+
+Note that the `winawerlab` environment you set up does not include the
+`pylink` package, which is necessary to get the data from the
+eye-tracker in this script. This is because `pylink` is very annoying
+to set up (see the documentation
+from [pygaze](https://www.pygaze.org/installation/)
+and [psychopy](http://www.psychopy.org/api/hardware/pylink.html) for
+more info) and because you won't need it: you (presumably) will not be
+gathering eye-tracker data using your personal computer and it's
+already installed and working on Apple machine at the scanner.

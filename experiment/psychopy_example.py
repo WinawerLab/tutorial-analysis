@@ -33,10 +33,41 @@ import h5py
 import glob
 import os
 import datetime
+import warnings
 import numpy as np
 from psychopy import visual, core, event
 from psychopy.tools import imagetools
 from scipy import misc as smisc
+
+try:
+    import pylink
+except ImportError:
+    warnings.warn("Unable to find pylink, will not be able to collect eye-tracking data")
+
+
+def _setup_eyelink(win_size):
+    """set up the eyelink eye-tracking
+    """
+
+    # Connect to eyelink
+    eyetracker = pylink.EyeLink('192.168.1.5')
+    pylink.openGraphics()
+
+    # Set content of edf file
+    eyetracker.sendCommand('link_sample_data=LEFT,RIGHT,GAZE,AREA')
+    eyetracker.sendCommand('file_sample_data=LEFT,RIGHT,GAZE,AREA,GAZERES,STATUS')
+    eyetracker.sendCommand('file_event_filter=LEFT,RIGHT,FIXATION,SACCADE,BLINK,MESSAGE,BUTTON')
+
+    # Set coords
+    eyetracker.sendCommand('screen_pixel_coords=0 0 {} {}'.format(*win_size))
+    eyetracker.sendMessage('DISPLAY_COORDS 0 0 {} {}'.format(*win_size))
+
+    # Calibrate
+    eyetracker.setCalibrationType('HV5')
+    eyetracker.doTrackerSetup(win_size)
+    pylink.closeGraphics()
+
+    return eyetracker
 
 
 def _create_blanks(blank_sec_length, on_msec_length, off_msec_length, stimulus_shape, blank_loc):
@@ -104,7 +135,8 @@ def _set_params(stim_path, idx_path, on_msec_length=300, off_msec_length=200,
 
 
 def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blank_sec_length=16,
-        init_blank_sec_length=16, fix_pix_size=10, fix_button_prob=1/6., **monitor_kwargs):
+        init_blank_sec_length=16, fix_pix_size=10, fix_button_prob=1/6., eyetracker=None,
+        edf_path=None, **monitor_kwargs):
     """run one run of the experiment
 
     stim_path specifies the path of the unshuffled experiment stimuli, while idx_path specifies the
@@ -141,6 +173,13 @@ def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blan
     will change color (will never repeat more than once in a row). For fixation digit, this
     probability is relative to each stimulus presentation / ON block starting; for fixation dot,
     it's each stimulus change (stimulus ON or OFF block starting).
+
+    eyetracker: EyeLink object or None. if None, will not collect eyetracking data. if not None,
+    will gather it. the EyeLink object must already be initialized (by calling the _setup_eyelink
+    function, as is done in the expt function). if this is set, must also specify edf_path
+    
+    edf_path: str or None. if eyetracker is not None, this must be a string, which is where we
+    will save the output of the eyetracker
     """
     stimuli, idx, expt_params, monitor_kwargs = _set_params(
         stim_path, idx_path, on_msec_length, off_msec_length, fix_button_prob,
@@ -159,6 +198,12 @@ def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blan
     # numbers all match up (we don't draw or wait during the on part of the first iteration)
     img = visual.ImageStim(win, image=imagetools.array2image(stimuli[0]),
                            size=expt_params['stim_size'])
+
+    if eyetracker is not None:
+        assert edf_path is not None, "edf_path must be set so we can save the eyetracker output!"
+        eyetracker.openDataFile('temp.EDF')
+        pylink.flushGetKeyQueue()
+        eyetracker.startRecording(1, 1, 1, 1)
 
     wait_text = visual.TextStim(win, ("Press 5 to start\nq will quit this run\nescape will quit "
                                       "this session"))
@@ -190,6 +235,8 @@ def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blan
             fixation.draw()
             next_stim_time = (i*on_msec_length + i*off_msec_length - 2)/1000.
             core.wait(abs(clock.getTime() - timings[0][2] - next_stim_time))
+        if eyetracker is not None:
+            eyetracker.sendMessage("TRIALID %02d" % i)
         win.flip()
         timings.append(("stimulus_%d" % i, "on", clock.getTime()))
         fixation_info.append((fixation.text, clock.getTime()))
@@ -203,6 +250,11 @@ def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blan
             keys_pressed.extend([(key[0], key[1]) for key in all_keys])
         if 'q' in [k[0] for k in all_keys] or 'escape' in [k[0] for k in all_keys]:
             break
+    if eyetracker is not None:
+        eyetracker.stopRecording()
+        eyetracker.closeDataFile()
+        eyetracker.receiveDataFile('temp.EDF', edf_path)
+        eyetracker.close()
     win.close()
     return keys_pressed, fixation_info, timings, expt_params, idx
 
@@ -226,7 +278,7 @@ def _convert_str(list_of_strs):
 
 
 def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/raw_behavioral",
-         input_dir="data/stimuli", **kwargs):
+         input_dir="data/stimuli", eyetrack=False, screen_size=[1920, 1080], **kwargs):
     """run a full experiment
 
     this just loops through the specified stims_path, passing each one to the run function in
@@ -238,6 +290,7 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/ra
     if input_dir[-1] != '/':
         input_dir += '/'
     file_path = "%s%s_%s_sess{sess:02d}.hdf5" % (output_dir, datetime.datetime.now().strftime("%Y-%b-%d"), subj_name)
+    edf_path = "%s%s_%s_sess{sess:02d}.EDF" % (output_dir, datetime.datetime.now().strftime("%Y-%b-%d"), subj_name)
     sess_num = 0
     while glob.glob(file_path.format(sess=sess_num)):
         sess_num += 1
@@ -245,12 +298,20 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/ra
     for p in idx_paths:
         if not os.path.isfile(p):
             raise IOError("Unable to find array of stimulus indices %s!" % p)
+    if eyetrack:
+        eyetracker = _setup_eyelink(screen_size)
+    else:
+        eyetracker = None
+        edf_path = None
     print("Running %d runs, with the following stimulus:" % number_of_runs)
     print("\t%s" % stimuli_path)
     print("Will use the following indices:")
     print("\t%s" % "\n\t".join(idx_paths))
+    print("Will save at the following location:\n\t%s" % file_path.format(sess=sess_num))
     for i, path in enumerate(idx_paths):
-        keys, fixation, timings, expt_params, idx = run(stimuli_path, path, **kwargs)
+        keys, fixation, timings, expt_params, idx = run(stimuli_path, path, size=screen_size,
+                                                        eyetracker=eyetracker, edf_path=edf_path,
+                                                        **kwargs)
         with h5py.File(file_path.format(sess=sess_num), 'a') as f:
             f.create_dataset("run_%02d_button_presses" % i, data=_convert_str(keys))
             f.create_dataset("run_%02d_fixation_data" % i, data=_convert_str(fixation))
@@ -300,5 +361,9 @@ if __name__ == '__main__':
                         help=("Which run to run first. Useful if, for instance, you ran the first "
                               "two runs without problem and then had to quit out in the third. You"
                               " should then set this to 2 (because they're 0-indexed)."))
+    parser.add_argument("--eyetrack", '-e', action="store_true",
+                        help=("Pass this flag to tell the script to gather eye-tracking data. If"
+                              " pylink is not installed, this is impossible and will throw an "
+                              "exception"))
     args = vars(parser.parse_args())
-    expt(**args)
+    expt(screen_size=(1050,1680), **args)
