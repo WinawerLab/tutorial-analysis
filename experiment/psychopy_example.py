@@ -289,7 +289,7 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/ra
     if input_dir[-1] != '/':
         input_dir += '/'
     file_path = "%s%s_%s_sess{sess:02d}.hdf5" % (output_dir, datetime.datetime.now().strftime("%Y-%b-%d"), subj_name)
-    edf_path = "%s%s_%s_sess{sess:02d}.EDF" % (output_dir, datetime.datetime.now().strftime("%Y-%b-%d"), subj_name)
+    edf_path = "%s%s_%s_sess{sess:02d}_run{run:02d}.EDF" % (output_dir, datetime.datetime.now().strftime("%Y-%b-%d"), subj_name)
     sess_num = 0
     while glob.glob(file_path.format(sess=sess_num)):
         sess_num += 1
@@ -310,7 +310,7 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/ra
     for i, path in enumerate(idx_paths):
         keys, fixation, timings, expt_params, idx = run(stimuli_path, path, size=screen_size,
                                                         eyetracker=eyetracker,
-                                                        edf_path=edf_path.format(sess=sess_num),
+                                                        edf_path=edf_path.format(sess=sess_num, run=i),
                                                         **kwargs)
         with h5py.File(file_path.format(sess=sess_num), 'a') as f:
             f.create_dataset("run_%02d_button_presses" % i, data=_convert_str(keys))
