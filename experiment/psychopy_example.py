@@ -298,19 +298,20 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/ra
     for p in idx_paths:
         if not os.path.isfile(p):
             raise IOError("Unable to find array of stimulus indices %s!" % p)
-    if eyetrack:
-        eyetracker = _setup_eyelink(screen_size)
-    else:
-        eyetracker = None
-        edf_path = None
     print("Running %d runs, with the following stimulus:" % number_of_runs)
     print("\t%s" % stimuli_path)
     print("Will use the following indices:")
     print("\t%s" % "\n\t".join(idx_paths))
     print("Will save at the following location:\n\t%s" % file_path.format(sess=sess_num))
     for i, path in enumerate(idx_paths):
+        if eyetrack:
+            eyetracker = _setup_eyelink(screen_size)
+        else:
+            eyetracker = None
+            edf_path = None
         keys, fixation, timings, expt_params, idx = run(stimuli_path, path, size=screen_size,
-                                                        eyetracker=eyetracker, edf_path=edf_path,
+                                                        eyetracker=eyetracker,
+                                                        edf_path=edf_path.format(sess=sess_num),
                                                         **kwargs)
         with h5py.File(file_path.format(sess=sess_num), 'a') as f:
             f.create_dataset("run_%02d_button_presses" % i, data=_convert_str(keys))
