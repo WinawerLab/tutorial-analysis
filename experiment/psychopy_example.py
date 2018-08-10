@@ -135,7 +135,7 @@ def _set_params(stim_path, idx_path, on_msec_length=300, off_msec_length=200,
 
 
 def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blank_sec_length=16,
-        init_blank_sec_length=16, fix_pix_size=10, fix_button_prob=1/6., eyetracker=None,
+        init_blank_sec_length=16, fix_pix_size=20, fix_button_prob=1/6., eyetracker=None,
         edf_path=None, **monitor_kwargs):
     """run one run of the experiment
 
@@ -202,7 +202,7 @@ def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blan
     if eyetracker is not None:
         assert edf_path is not None, "edf_path must be set so we can save the eyetracker output!"
         eyetracker.openDataFile('temp.EDF')
-        pylink.flushGetKeyQueue()
+        pylink.flushGetkeyQueue()
         eyetracker.startRecording(1, 1, 1, 1)
 
     wait_text = visual.TextStim(win, ("Press 5 to start\nq will quit this run\nescape will quit "
@@ -310,7 +310,7 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/ra
     print("Will save at the following location:\n\t%s" % file_path.format(sess=sess_num))
     for i, path in enumerate(idx_paths):
         keys, fixation, timings, expt_params, idx = run(stimuli_path, path, size=screen_size,
-                                                        eyetracker=eyetracker, edf_path=edf_path,
+                                                        eyetracker=eyetracker, edf_path=edf_path.format(sess=sess_num),
                                                         **kwargs)
         with h5py.File(file_path.format(sess=sess_num), 'a') as f:
             f.create_dataset("run_%02d_button_presses" % i, data=_convert_str(keys))
@@ -366,4 +366,4 @@ if __name__ == '__main__':
                               " pylink is not installed, this is impossible and will throw an "
                               "exception"))
     args = vars(parser.parse_args())
-    expt(screen_size=(1050,1680), **args)
+    expt(**args)
