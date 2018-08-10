@@ -254,7 +254,6 @@ def run(stim_path, idx_path, on_msec_length=300, off_msec_length=200, final_blan
         eyetracker.stopRecording()
         eyetracker.closeDataFile()
         eyetracker.receiveDataFile('temp.EDF', edf_path)
-        eyetracker.close()
     win.close()
     return keys_pressed, fixation_info, timings, expt_params, idx
 
@@ -310,7 +309,8 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/ra
     print("Will save at the following location:\n\t%s" % file_path.format(sess=sess_num))
     for i, path in enumerate(idx_paths):
         keys, fixation, timings, expt_params, idx = run(stimuli_path, path, size=screen_size,
-                                                        eyetracker=eyetracker, edf_path=edf_path.format(sess=sess_num),
+                                                        eyetracker=eyetracker,
+                                                        edf_path=edf_path.format(sess=sess_num),
                                                         **kwargs)
         with h5py.File(file_path.format(sess=sess_num), 'a') as f:
             f.create_dataset("run_%02d_button_presses" % i, data=_convert_str(keys))
@@ -331,6 +331,8 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/ra
                     f.create_dataset("run_%02d_%s" % (i, k), data=v)
         if 'escape' in [k[0] for k in keys]:
             break
+    if eyetracker is not None:
+        eyetracker.close()
 
 
 if __name__ == '__main__':
