@@ -141,3 +141,4 @@ octave-workspace
 experiment/data/stimuli/*npy
 experiment/data/stimuli/*csv
 experiment/data/raw_behavioral/*hdf5
+experiment/data/MRI_first_level/*tsv
