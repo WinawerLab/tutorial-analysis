@@ -70,7 +70,7 @@ def _find_timing_from_results(results, run_num):
 
 
 def main(behavioral_results_path, unshuffled_stim_descriptions_path,
-         save_path='data/MRI_first_level/run_%02d_events.tsv'):
+         save_path='data/MRI_first_level/run_%02d_events.tsv', stimulus_file_name=None):
     """create and save BIDS events tsvs for all runs.
 
     we do this for all non-empty runs in the h5py File found at behavioral_results_path
@@ -103,14 +103,22 @@ def main(behavioral_results_path, unshuffled_stim_descriptions_path,
                 design_df.trial_type = design_df.trial_type.replace({np.nan: design_df.trial_type.max()+1})
                 design_df['trial_type'] = design_df['trial_type'].astype(int)
                 design_df['duration'] = _find_timing_from_results(results, run_num)
-                # we decode this (from bytes to string) because we want this to be a string
-                stim_path = results['run_%02d_stim_path' % run_num].value.decode()
-                stim_path = stim_path.replace('data/stimuli/', '')
-                design_df['stim_file'] = stim_path
-                design_df['note'] = ""
+                if stimulus_file_name is None:
+                    # we decode this (from bytes to string) because we want this to be a string
+                    stim_path = results['run_%02d_stim_path' % run_num].value.decode()
+                    stim_path = stim_path.replace('data/stimuli/', '')
+                    design_df['stim_file'] = stim_path
+                else:
+                    design_df['stim_file'] = stimulus_file_name
+                # blank fields should be n/a
+                design_df['note'] = "n/a"
                 design_df.loc[design_df.trial_type == design_df.trial_type.max(), 'note'] = "blank trial"
                 # design_df = design_df[['onset', 'duration', 'trial_type', 'stim_file', 'stim_file_index', 'note']]
                 design_df['onset'] = design_df.onset.apply(lambda x: "%.03f" % x)
+                # reorder the columns so that onset is first and duration is second (otherwise it
+                # won't pass the bids validator)
+                design_df = design_df[['onset', 'duration', 'trial_type', 'stim_file',
+                                       'stim_file_index', 'note']]
                 design_df.to_csv(save_path % (save_num), '\t', index=False)
                 save_num += 1
             run_num += 1
@@ -126,6 +134,13 @@ if __name__ == '__main__':
     parser.add_argument("unshuffled_stim_descriptions_path",
                         help=("Path to the csv that describes the stimuli (we use this to determine"
                               "which stimuli are in which stimulus class)"))
+    parser.add_argument("--stimulus_file_name", "-s", default=None,
+                        help=("Name of the stimulus (npy) file. If None (default), will use the "
+                              "value found in the behavioral results hdf5. Otherwise will use this "
+                              "(as all runs use same file, don't need multiple values here). This "
+                              "is useful if you called the stimulus file one thing at run-time "
+                              "(which will be stored in the hdf5 file) and have renamed it in your"
+                              " BIDS directory (which is what you want in your tsv)"))
     # the doubling of the % in the help string escapes the character so python doesn't think I want
     # to format the string
     parser.add_argument("--save_path", "-p", default="data/MRI_first_level/run_%02d_events.tsv",
