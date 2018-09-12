@@ -301,7 +301,9 @@ def expt(stimuli_path, number_of_runs, first_run, subj_name, output_dir="data/ra
         eyetracker = _setup_eyelink(screen_size)
     else:
         eyetracker = None
-        edf_path = None
+        # we pass through the same edf_path even if we're not using the eyetracker because it
+        # doesn't get used (and if set this to None or something, then the edf_path.format call
+        # several lines down will fail)
     print("Running %d runs, with the following stimulus:" % number_of_runs)
     print("\t%s" % stimuli_path)
     print("Will use the following indices:")
