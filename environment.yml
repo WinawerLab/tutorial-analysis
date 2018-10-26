@@ -42,6 +42,7 @@ dependencies:
   - nibabel
   - scikit-learn
   - scikit-image
+  - greenlet==0.4.15
   - pip:
       - pyglet
       - neuropythy
