@@ -24,7 +24,7 @@ dependencies:
   - configobj
   - pyyaml
   - gevent
-  - greenlet
+#  - greenlet
   - msgpack-python
   - psutil
   - pytables
