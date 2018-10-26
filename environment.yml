@@ -54,4 +54,5 @@ dependencies:
       - pysoundcard
       - psychopy_ext
       - psychopy
+      - pydeface
 
