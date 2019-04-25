@@ -26,5 +26,5 @@ dependencies:
   - pip:
       - neuropythy
       - pydeface
-      - pybids
+      - pybids>=0.7.0
 
