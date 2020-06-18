@@ -3,28 +3,14 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python==3.6
-  - anaconda
+  - python==3.7
   - pip
-  - jupyter
-  - jupyterlab
-  - ipykernel
   - numpy
   - matplotlib
-  - scipy
-  - seaborn
-  - statsmodels
   - pandas
-  - nipype>=1.1.1
   - pyyaml
-  - pyosf
-  - osfclient
-  - h5py
   - nibabel
-  - scikit-learn
-  - scikit-image
+  - Pillow
   - pip:
       - neuropythy
-      - pydeface
-      - pybids>=0.7.0
 
